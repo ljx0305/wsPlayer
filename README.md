@@ -31,19 +31,19 @@
 
 1. 部署后端流媒体服务器
 
-
 ```shell
-docker run -id -p 8080:80 panjjo/zlmediakit
+docker pull panjjo/zlmediakit
+docker run -id -p 8080:80 -p 554:554 panjjo/zlmediakit
 ```
 
-2. 向ZLMediaKit添加一路视频流（API接口参数请自行更换），见ZLMediaKit MediaServer API：[MediaServer支持的HTTP API](https://github.com/zlmediakit/ZLMediaKit/wiki/MediaServer%E6%94%AF%E6%8C%81%E7%9A%84HTTP-API)
+2. 使用ffmpeg命令，向ZLMediaKit添加一路RTSP推流
 ```shell
-curl --location --request GET '100.100.154.29:8083/index/api/addStreamProxy?secret=035c73f7-bb6b-4889-a715-d9eb2d1925cc&vhost=__defaultVhost__&app=live&stream=test&url=rtsp://admin:smai1234@100.100.154.133'
+ffmpeg -re -stream_loop -1 -i test.mp4 -an -vcodec copy -f rtsp -rtsp_transport tcp rtsp://100.100.154.29/live/test
 ```
 
 3. 根据ZLMediaKit的[播放url规则](https://github.com/zlmediakit/ZLMediaKit/wiki/%E6%92%AD%E6%94%BEurl%E8%A7%84%E5%88%99)得知，WebSocket-fmp4协议的URL格式为：
 ```shell
-ws://100.100.154.29:8083/live/test.live.mp4
+ws://100.100.154.29:8080/live/test.live.mp4
 ```
 
 4. 然后调用播放器代码：
@@ -65,6 +65,83 @@ ws://100.100.154.29:8083/live/test.live.mp4
 </body>
 </html>
 ```
+## 5. magic-videoplayer
+原本打算起名wsplayer，但是wsplayer的项目名称在npm公共仓库中已经被使用，顾起名`magic-videoplayer`
+magic-videoplayer 基于 react 开发,支持主流的播放器功能 以及主流的视频格式和功能 以及判别视频文件属于哪类视频格式，支持多个播放器同步播放时间校正 #使用
+
+#项目里使用
+
+```
+npm i magic-videoplayer --save
+或
+yarn add magic-videoplayer
+```
+
+# Player 播放器
+
+视频播放器
+
+## 代码演示
+
+```tsx
+import React, { useEffect, useState } from 'react';
+import { Player } from 'magic-videoplayer';
+
+const Play = () => {
+  const [url, setUrl] = useState('');
+  const [ref, setRef] = useState('');
+  const [wsUrl, setWsUrl] = useState('');
+  const [width, setWidth] = useState(700);
+
+  return (
+    <div>
+      <div style={{ width }}>
+        <Player
+          url={url}
+          onRef={(s) => {
+            setRef(s);
+          }}
+          extra={<div style={{ color: '#fff', lineHeight: '30px' }}>额外按钮</div>}
+          onPtzChange={(ptz) => {
+            console.log(ptz, 'ptzchange');
+          }}
+          onError={() => {
+            console.log('错误onerr');
+          }}
+          reconnection
+          onPlay={(w, h, type) => {
+            console.log({ w, h, type });
+          }}
+          emptyurlPrompt="请选择摄像头"
+          onFullChange={(full) => {
+            console.log(full);
+          }}
+        ></Player>
+      </div>
+    </div>
+  );
+};
+
+export default () => <Play />;
+```
+
+## API
+
+| 参数 | 说明 | 类型 | 默认值 |
+| --- | --- | --- | --- |
+| url | 视频地址 直播为 ws 开头 片段为 http 开头 | <font color='#c41d7f'>string</font> | - |
+| onError | 播放错误时的回调 | <font color='#c41d7f'> ()=>void </font> | - |
+| onPlay | 直播流开始播放的回调 | <font color='#c41d7f'> (videoWidth: number, videoHeight: number,videoType:string) => void </font> | - |
+| autoPlay | 直播流是否自动播放 | <font color='#c41d7f'> boolean</font> | true |
+| reconnection | 是否开启断线重连 | <font color='#c41d7f'> boolean </font> | false |
+| onRef | 组件的 ref 引用 | <font color='#c41d7f'> (ref:any)=>void</font> | - |
+| extra | 控制台额外的标签 | <font color='#c41d7f'> ReactNode \| (() => ReactNode) </font> | - |
+| videoClass | video 暴露 class | <font color='#c41d7f'> string </font> | - |
+| canvasClass | canvas 暴露 class | <font color='#c41d7f'> string </font> | - |
+| screenshot | 是否显示截图按钮 | <font color='#c41d7f'>boolean</font> | false |
+| closeControlBar | 关闭底部控制栏(仅在直播流有效) | <font color='#c41d7f'>boolean</font> | false |
+| banfullscreen | 禁止播放器全屏(仅在直播流有效) | <font color='#c41d7f'>boolean</font> | false |
+| emptyurlPrompt | 播放地址为空时的提示内容 | <font color='#c41d7f'> string</font> | - |
 
 ## 播放器原理
 ​       将WebSocket收到的fmp4 Segment片段`appendBuffer`到`MediaSource`中，此时`video.buffered`会记录当前已经`appendBuffer`的视频时间段，然后将`video.buffered`的起始时间设置给`video.currentTime`，然后浏览器就会从`video.buffered`缓存的视频开始播放
